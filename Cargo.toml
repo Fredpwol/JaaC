@@ -1,5 +1,5 @@
 [package]
-name = "jiofi-advanced-access-config"
+name = "jaac"
 version = "0.1.0"
 edition = "2021"
 
