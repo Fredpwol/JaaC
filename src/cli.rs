@@ -1,28 +1,24 @@
 use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
 
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum PosArgs {
+    Purge,
+    ResetPassword,
+    Login,
+    Browser,
+    Status
+}
 ///Advanced access configuration for the jiofi internet router
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
-#[clap(group(ArgGroup::new("cmd").args(&["purge", "reset-password", "login", "browser", "status"])))]
 pub struct Cli {
+
+    #[clap(value_enum)]
+    pub args: Option<PosArgs>,
 
     #[clap(subcommand)]
     pub commands: Option<Commands>,
-
-    #[clap(value_parser, action)]
-    pub purge: bool,
-
-    #[clap(value_parser, action)]
-    pub reset_password: bool,
-
-    #[clap(value_parser, action)]
-    pub login: bool,
-
-    #[clap(value_parser, action)]
-    pub browser: bool,
-
-    #[clap(value_parser, action)]
-    pub status: bool,
 
 }
 
@@ -112,7 +108,7 @@ pub struct GroupCreateCommand {
     #[clap(value_parser)]
     pub name: String,
 
-    #[clap(long, short, arg_enum)]
+    #[clap(long, short, value_enum)]
     pub mode: Mode,
 }
 
@@ -124,7 +120,7 @@ pub struct GroupModifyCommand {
     #[clap(long, short, requires = "group-name")]
     pub name: Option<String>,
 
-    #[clap(long, short, arg_enum, requires = "group-name")]
+    #[clap(long, short, value_enum, requires = "group-name")]
     pub mode: Option<Mode>,
 }
 
