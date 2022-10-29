@@ -1,14 +1,19 @@
+use std::collections::HashMap;
+use std::time::Duration;
+use std::{io, thread};
 use std::{io::Write, rc::Rc};
 
 use clap::Parser;
 #[allow(unused_variables, unused_imports)]
 use jaac::navigator;
+use jaac::navigator::ConnectedDevice;
 use jaac::utils::*;
 use jaac::{
     cli::{Cli, Commands},
     db::SessionInfo,
 };
 use rpassword::read_password;
+use serde::__private::de;
 use tokio;
 
 #[tokio::main]
@@ -49,8 +54,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 };
 
-                let mut mynav =
-                    navigator::JioPageNavigator::new(session.username.clone(), session.password.clone()).unwrap();
+                let mut mynav = navigator::JioPageNavigator::new(
+                    session.username.clone(),
+                    session.password.clone(),
+                )
+                .unwrap();
                 match mynav.login().await {
                     Ok(()) => println!("Login successfully"),
                     Err(error) => {
@@ -71,10 +79,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let mut nav =
                     navigator::JioPageNavigator::new(session.username, session.password).unwrap();
 
-                let mac_conf = nav.get_mac_config_page_data().await?;
+                
                 let connected_devices = nav.get_connected_devices().await?;
-                println!("mac config \n {:?}", mac_conf);
-                println!("connected devices \n {:?}", connected_devices);
+
+                let mut host_device: Option<ConnectedDevice> = None;
+
+                for device in connected_devices {
+                    if device.IP_address == user_ip_addr {
+                        host_device = Some(device);
+                    }
+                }
+
+                let mac_conf = nav.get_mac_config_page_data().await?;
+
+                match host_device {
+                    Some(device) => {
+                        let mut payload = vec![];
+
+                        let mut mac_rule: HashMap<String, String> = HashMap::new();
+                        mac_rule.insert("rule_address".to_string(), device.MAC);
+                        mac_rule.insert("rule_name".to_string(), device.Host_name);
+                        payload.push(MacFilterOptionType::MacRuleTable(vec![mac_rule]));
+
+                        use jaac::navigator::MacFilterOptionType;
+                        for mac_option in mac_conf {
+                            match mac_option {
+                                MacFilterOptionType::MacRules(mut opts) => {
+                                    opts.insert("MACFILTER_MODE".to_string(), "1".to_string());
+                                    opts.insert("MACFILTER_ENABLE".to_string(), "1".to_string());
+                                    payload.push(MacFilterOptionType::MacRules(opts));
+                                }
+                                _ => (),
+                            };
+                        }
+                        println!("{:?}", payload);
+                        nav.post_mac_config_page_data(payload).await?;
+                        println!("Done");
+                        // io::stdout().flush().unwrap();
+                        // thread::sleep(Duration::new(0, 1_000_000_000));
+                        // print!(" ;)\n");
+                    }
+                    None => {
+                        panic!();
+                    }
+                }
+
+                // println!("mac_conf devices \n {:?}", mac_conf);
             }
             PosArgs::ResetPassword => (),
             PosArgs::Status => (),
