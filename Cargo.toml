@@ -16,3 +16,4 @@ rusqlite = { version = "0.28.0", features = ["bundled"] }
 aes-gcm = "0.10.1"
 rpassword = "7.0"
 dirs = "4.0.0"
+serde = "1.0.147"
