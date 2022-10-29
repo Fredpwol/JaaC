@@ -5,6 +5,7 @@ use reqwest::{
 };
 use scraper::{Html, Selector};
 use serde_json::Value;
+use serde::Deserialize;
 
 use std::collections::HashMap;
 
@@ -30,6 +31,15 @@ pub struct JioPageNavigator {
 pub enum MacFilterOptionType {
     MacRules(HashMap<String, String>),
     MacRuleTable(Vec<HashMap<String, String>>),
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConnectedDevice{
+    pub Host_name: String,
+    pub IP_address: String,
+    pub Lease_Time: String,
+    pub MAC: String,
+    pub Status: String
 }
 
 impl JioPageNavigator {
@@ -181,7 +191,7 @@ impl JioPageNavigator {
         &mut self,
         data: Vec<MacFilterOptionType>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        self.login().await?;
+        // self.login().await?;
         let mut form_data: HashMap<String, String> = HashMap::new();
         for op in data {
             let option = match op {
@@ -213,7 +223,7 @@ impl JioPageNavigator {
         Ok(())
     }
 
-    pub async fn get_connected_devices(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn get_connected_devices(&mut self) -> Result<Vec<ConnectedDevice>, Box<dyn std::error::Error>> {
         self.login().await?;
         let res = self.client.get(CLIENT_LIST_PAGE).send().await?;
         let page_data = res.text().await?;
@@ -230,8 +240,7 @@ impl JioPageNavigator {
             .unwrap()
             .as_str();
         let formatted_list = format!("[{}]", cl);
-        let client_list: Value = serde_json::from_str(&formatted_list).expect("Invalid JSON data!");
-        println!("{}", client_list[0]["MAC"]);
-        Ok(())
+        let client_list: Vec<ConnectedDevice> = serde_json::from_str(&formatted_list).expect("Invalid JSON data!");
+        Ok(client_list)
     }
 }
