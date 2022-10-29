@@ -1,6 +1,6 @@
 use std::{rc::Rc};
 
-use crate::{utils::{decrypt_data, encrypt_data}, constants::{get_db_full_path}};
+use crate::{utils::encryption::{decrypt_data, encrypt_data}, constants::{get_db_full_path}};
 use std::io::prelude::*;
 use rusqlite::{Connection, Result};
 
