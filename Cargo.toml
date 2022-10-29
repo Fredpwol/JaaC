@@ -11,4 +11,8 @@ scraper = "0.13.0"
 tokio = { version = "1", features = ["full"] }
 regex = "1"
 serde_json = "1.0"
-clap = { version = "3.2.22", features = ["derive"] }
+clap = { version = "4.0.18", features = ["derive"] }
+rusqlite = { version = "0.28.0", features = ["bundled"] }
+aes-gcm = "0.10.1"
+rpassword = "7.0"
+dirs = "4.0.0"
