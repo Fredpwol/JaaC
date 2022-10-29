@@ -8,11 +8,14 @@ use serde_json::Value;
 
 use std::collections::HashMap;
 
+use crate::errors::LoginError;
+
 const BASE_URL: &str = "http://jiofi.local.html/";
 const LOGIN_URL: &str = "http://jiofi.local.html/cgi-bin/en-jio/login_check.html";
 const MAC_CONFIG_PAGE: &str = "http://jiofi.local.html/cgi-bin/en-jio/mWMAC.html";
 const POST_MAC_URL: &str = "http://jiofi.local.html/cgi-bin/en-jio/mWMAC_Apply.html";
 const CLIENT_LIST_PAGE: &str = "http://jiofi.local.html/cgi-bin/en-jio/mConnected_Devices.html";
+const LOGIN_CHECK: &str = "http://jiofi.local.html/cgi-bin/en-jio/login_Query.html";
 
 pub struct JioPageNavigator {
     is_logged_in: bool,
@@ -72,7 +75,7 @@ impl JioPageNavigator {
             let response = self.client.get(BASE_URL).send().await?;
             let respose_body = response.text().await?;
 
-            let parsed_html = Html::parse_document(&respose_body); 
+            let parsed_html = Html::parse_document(&respose_body);
             let request_token_selector = Selector::parse("#RequestVerifyToken").unwrap();
 
             let matches: Vec<_> = parsed_html.select(&request_token_selector).collect();
@@ -88,10 +91,21 @@ impl JioPageNavigator {
             login_data.insert("pwd", &self.password);
 
             self.client.post(LOGIN_URL).form(&login_data).send().await?;
-            self.is_logged_in = true;
+            let is_logged_in = self.check_login_status().await?;
+            if !is_logged_in{
+                return Err(LoginError.into());
+            }
+            self.is_logged_in = is_logged_in;
         }
 
         Ok(())
+    }
+
+    async fn check_login_status(&self) -> Result<bool, Box<dyn std::error::Error>> {
+        let response = self.client.post(LOGIN_CHECK).send().await?;
+        let data = response.text().await?;
+        let parsed_data: Value = serde_json::from_str(&data).expect("Invalid JSON data!");
+        return Ok(parsed_data["result"] == true && parsed_data["login"] == "1");
     }
 
     pub async fn get_mac_config_page_data(
@@ -220,6 +234,4 @@ impl JioPageNavigator {
         println!("{}", client_list[0]["MAC"]);
         Ok(())
     }
-
-    
 }
