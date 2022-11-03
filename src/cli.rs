@@ -7,7 +7,8 @@ pub enum PosArgs {
     ResetPassword,
     Login,
     Browser,
-    Status
+    Status,
+    Clean
 }
 ///Advanced access configuration for the jiofi internet router
 #[derive(Parser)]
