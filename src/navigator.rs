@@ -4,12 +4,13 @@ use reqwest::{
     Client,
 };
 use scraper::{Html, Selector};
-use serde_json::Value;
 use serde::Deserialize;
+use serde_json::Value;
 
 use std::collections::HashMap;
 
 use crate::errors::LoginError;
+use crate::types::Error;
 
 const BASE_URL: &str = "http://jiofi.local.html/";
 const LOGIN_URL: &str = "http://jiofi.local.html/cgi-bin/en-jio/login_check.html";
@@ -34,19 +35,16 @@ pub enum MacFilterOptionType {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ConnectedDevice{
+pub struct ConnectedDevice {
     pub Host_name: String,
     pub IP_address: String,
     pub Lease_Time: String,
     pub MAC: String,
-    pub Status: String
+    pub Status: String,
 }
 
 impl JioPageNavigator {
-    pub fn new(
-        username: String,
-        password: String,
-    ) -> Result<JioPageNavigator, Box<dyn std::error::Error>> {
+    pub fn new(username: String, password: String) -> Result<JioPageNavigator, Error> {
         let headers = JioPageNavigator::get_headers();
         let client = Client::builder()
             .default_headers(headers)
@@ -80,7 +78,7 @@ impl JioPageNavigator {
         headers
     }
 
-    pub async fn login(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn login(&mut self) -> Result<(), Error> {
         if !self.is_logged_in {
             let response = self.client.get(BASE_URL).send().await?;
             let respose_body = response.text().await?;
@@ -102,7 +100,7 @@ impl JioPageNavigator {
 
             self.client.post(LOGIN_URL).form(&login_data).send().await?;
             let is_logged_in = self.check_login_status().await?;
-            if !is_logged_in{
+            if !is_logged_in {
                 return Err(LoginError.into());
             }
             self.is_logged_in = is_logged_in;
@@ -111,16 +109,14 @@ impl JioPageNavigator {
         Ok(())
     }
 
-    async fn check_login_status(&self) -> Result<bool, Box<dyn std::error::Error>> {
+    async fn check_login_status(&self) -> Result<bool, Error> {
         let response = self.client.post(LOGIN_CHECK).send().await?;
         let data = response.text().await?;
         let parsed_data: Value = serde_json::from_str(&data).expect("Invalid JSON data!");
         return Ok(parsed_data["result"] == true && parsed_data["login"] == "1");
     }
 
-    pub async fn get_mac_config_page_data(
-        &mut self,
-    ) -> Result<Vec<MacFilterOptionType>, Box<dyn std::error::Error>> {
+    pub async fn get_mac_config_page_data(&mut self) -> Result<Vec<MacFilterOptionType>, Error> {
         self.login().await?;
         let mut res = vec![];
         let mut page_data: HashMap<String, String> = HashMap::new();
@@ -190,7 +186,7 @@ impl JioPageNavigator {
     pub async fn post_mac_config_page_data(
         &mut self,
         data: Vec<MacFilterOptionType>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Error> {
         // self.login().await?;
         let mut form_data: HashMap<String, String> = HashMap::new();
         for op in data {
@@ -223,7 +219,7 @@ impl JioPageNavigator {
         Ok(())
     }
 
-    pub async fn get_connected_devices(&mut self) -> Result<Vec<ConnectedDevice>, Box<dyn std::error::Error>> {
+    pub async fn get_connected_devices(&mut self) -> Result<Vec<ConnectedDevice>, Error> {
         self.login().await?;
         let res = self.client.get(CLIENT_LIST_PAGE).send().await?;
         let page_data = res.text().await?;
@@ -240,7 +236,62 @@ impl JioPageNavigator {
             .unwrap()
             .as_str();
         let formatted_list = format!("[{}]", cl);
-        let client_list: Vec<ConnectedDevice> = serde_json::from_str(&formatted_list).expect("Invalid JSON data!");
+        let client_list: Vec<ConnectedDevice> =
+            serde_json::from_str(&formatted_list).expect("Invalid JSON data!");
         Ok(client_list)
+    }
+
+    pub async fn update_setting(
+        &mut self,
+        options: HashMap<&str, MacFilterOptionType>,
+        _override: bool,
+    ) -> Result<(), Error> {
+        // options is a hash map that takes in key of either rule_table, mac_rules
+        self.login().await?;
+
+        let current_settings = self.get_mac_config_page_data().await?;
+        let mut payload: Vec<MacFilterOptionType> = vec![];
+
+        for setting in current_settings {
+            match setting {
+                MacFilterOptionType::MacRuleTable(mut ops) => {
+                    let setting = if let Some(rule_t) = options.get("rule_table") {
+                        if let MacFilterOptionType::MacRuleTable(new_rule_t) = rule_t {
+                            if _override {
+                                MacFilterOptionType::MacRuleTable(new_rule_t.clone())
+                            } else {
+                                ops.extend(new_rule_t.clone());
+                                MacFilterOptionType::MacRuleTable(ops.clone())
+                            }
+                        } else {
+                            panic!("Invalid type variant assigned to the the key 'rule_table' please make sure the variant is 'MacFilterOptionType::MacRuleTable'");
+                        }
+                    } else {
+                        MacFilterOptionType::MacRuleTable(ops)
+                    };
+                    payload.push(setting);
+                }
+                MacFilterOptionType::MacRules(mut ops) => {
+                    let setting = if let Some(rule) = options.get("mac_rules") {
+                        if let MacFilterOptionType::MacRules(new_rule) = rule {
+                            if _override {
+                                MacFilterOptionType::MacRules(new_rule.clone())
+                            } else {
+                                ops.extend(new_rule.clone());
+                                MacFilterOptionType::MacRules(ops.clone())
+                            }
+                        } else {
+                            panic!("Invalid type variant assigned to the the key 'mac_rules' please make sure the variant is 'MacFilterOptionType::MacRules'");
+                        }
+                    } else {
+                        MacFilterOptionType::MacRules(ops)
+                    };
+                    payload.push(setting);
+                }
+            }
+        }
+        self.post_mac_config_page_data(payload).await?;
+
+        Ok(())
     }
 }
