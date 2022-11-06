@@ -6,18 +6,29 @@ use std::{io::Write, rc::Rc};
 use clap::Parser;
 #[allow(unused_variables, unused_imports)]
 use jaac::navigator;
-use jaac::navigator::ConnectedDevice;
+use jaac::navigator::{ConnectedDevice, MacFilterOptionType};
 use jaac::utils::*;
 use jaac::{
     cli::{Cli, Commands},
     db::SessionInfo,
 };
+use jaac::types::Error;
 use rpassword::read_password;
+use rusqlite::Connection;
 use serde::__private::de;
 use tokio;
 
+fn get_jiofi_navigator(
+    connection: Rc<Connection>,
+) -> Result<navigator::JioPageNavigator, Error> {
+    let session = SessionInfo::retrieve(Some(connection));
+
+    let nav = navigator::JioPageNavigator::new(session.username, session.password)?;
+    Ok(nav)
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Error> {
     //         .expect("An Error Occured when trying to initialize client");
     // // let conf = mynav.get_mac_config_page_data().await?;
     // // let data = mynav.post_mac_config_page_data(conf).await?;
@@ -72,17 +83,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 session.create(Rc::clone(&connection)).unwrap();
             }
             PosArgs::Purge => {
-                let session = SessionInfo::retrieve(Some(connection));
-                println!("{:?}", session);
-                let user_ip_addr = get_local_ip_address();
+                let mut nav = get_jiofi_navigator(connection)?;
 
-                let mut nav =
-                    navigator::JioPageNavigator::new(session.username, session.password).unwrap();
-
-                
                 let connected_devices = nav.get_connected_devices().await?;
 
                 let mut host_device: Option<ConnectedDevice> = None;
+
+                let user_ip_addr = get_local_ip_address();
 
                 for device in connected_devices {
                     if device.IP_address == user_ip_addr {
@@ -112,22 +119,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 _ => (),
                             };
                         }
-                        println!("{:?}", payload);
                         nav.post_mac_config_page_data(payload).await?;
                         println!("Done");
-                        // io::stdout().flush().unwrap();
-                        // thread::sleep(Duration::new(0, 1_000_000_000));
-                        // print!(" ;)\n");
                     }
                     None => {
                         panic!();
                     }
                 }
-
-                // println!("mac_conf devices \n {:?}", mac_conf);
             }
             PosArgs::ResetPassword => (),
             PosArgs::Status => (),
+            PosArgs::Clean => {
+                use jaac::navigator::MacFilterOptionType;
+
+                let mut nav = get_jiofi_navigator(connection)?;
+                let mut payload = HashMap::new();
+
+
+                let mac_rule = HashMap::from([
+                    ("MACFILTER_MODE".to_string(), "0".to_string()),
+                    ("MACFILTER_ENABLE".to_string(), "0".to_string())
+                ]);
+
+                payload.insert("rule_table",  MacFilterOptionType::MacRuleTable(vec![]));
+                payload.insert("mac_rules", MacFilterOptionType::MacRules(mac_rule));
+
+
+                nav.update_setting(payload, true).await?;
+                println!("Cleaned!!");
+            }
         }
     }
 

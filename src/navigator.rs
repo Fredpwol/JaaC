@@ -275,7 +275,12 @@ impl JioPageNavigator {
                     let setting = if let Some(rule) = options.get("mac_rules") {
                         if let MacFilterOptionType::MacRules(new_rule) = rule {
                             if _override {
-                                MacFilterOptionType::MacRules(new_rule.clone())
+                                let mut new_ops = new_rule.clone();
+                                new_ops.insert(
+                                    "RequestVerifyToken".to_string(),
+                                    ops.get("RequestVerifyToken").unwrap().to_string(),
+                                );
+                                MacFilterOptionType::MacRules(new_ops)
                             } else {
                                 ops.extend(new_rule.clone());
                                 MacFilterOptionType::MacRules(ops.clone())
