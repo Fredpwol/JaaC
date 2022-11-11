@@ -1,26 +1,23 @@
 use std::collections::HashMap;
-use std::time::Duration;
-use std::{io, thread};
+// use std::time::Duration;
 use std::{io::Write, rc::Rc};
 
 use clap::Parser;
+use jaac::db::User;
 #[allow(unused_variables, unused_imports)]
 use jaac::navigator;
-use jaac::navigator::{ConnectedDevice, MacFilterOptionType};
+use jaac::navigator::ConnectedDevice;
+use jaac::types::Error;
 use jaac::utils::*;
 use jaac::{
     cli::{Cli, Commands},
     db::SessionInfo,
 };
-use jaac::types::Error;
 use rpassword::read_password;
 use rusqlite::Connection;
-use serde::__private::de;
 use tokio;
 
-fn get_jiofi_navigator(
-    connection: Rc<Connection>,
-) -> Result<navigator::JioPageNavigator, Error> {
+fn get_jiofi_navigator(connection: Rc<Connection>) -> Result<navigator::JioPageNavigator, Error> {
     let session = SessionInfo::retrieve(Some(connection));
 
     let nav = navigator::JioPageNavigator::new(session.username, session.password)?;
@@ -35,11 +32,11 @@ async fn main() -> Result<(), Error> {
     // // print!("{:?}", data);
     // mynav.get_connected_devices().await?;
     let cli = Cli::parse();
-    let (_, conn) = SessionInfo::new("".to_string(), "".to_string()).unwrap();
-    let connection = Rc::new(conn);
 
     if let Some(args) = cli.args {
         use jaac::cli::PosArgs;
+        let (_, conn) = SessionInfo::new("".to_string(), "".to_string()).unwrap();
+        let connection = Rc::new(conn);
         match args {
             PosArgs::Browser => (),
             PosArgs::Login => {
@@ -83,7 +80,7 @@ async fn main() -> Result<(), Error> {
                 session.create(Rc::clone(&connection)).unwrap();
             }
             PosArgs::Purge => {
-                let mut nav = get_jiofi_navigator(connection)?;
+                let mut nav = get_jiofi_navigator(Rc::clone(&connection))?;
 
                 let connected_devices = nav.get_connected_devices().await?;
 
@@ -135,15 +132,13 @@ async fn main() -> Result<(), Error> {
                 let mut nav = get_jiofi_navigator(connection)?;
                 let mut payload = HashMap::new();
 
-
                 let mac_rule = HashMap::from([
                     ("MACFILTER_MODE".to_string(), "0".to_string()),
-                    ("MACFILTER_ENABLE".to_string(), "0".to_string())
+                    ("MACFILTER_ENABLE".to_string(), "0".to_string()),
                 ]);
 
-                payload.insert("rule_table",  MacFilterOptionType::MacRuleTable(vec![]));
+                payload.insert("rule_table", MacFilterOptionType::MacRuleTable(vec![]));
                 payload.insert("mac_rules", MacFilterOptionType::MacRules(mac_rule));
-
 
                 nav.update_setting(payload, true).await?;
                 println!("Cleaned!!");
@@ -152,12 +147,28 @@ async fn main() -> Result<(), Error> {
     }
 
     match &cli.commands {
-        Some(command) => match command {
-            Commands::User(user_args) => (),
-            Commands::Ls(ls_args) => (),
-            Commands::Thanos { snap } => (),
-            Commands::Group(group_args) => (),
-        },
+        Some(command) => {
+            let (_, conn) = SessionInfo::new("".to_string(), "".to_string()).unwrap();
+            let connection = Rc::new(conn);
+            match command {
+                Commands::User(user_args) => (),
+                Commands::Ls(ls_args) => {
+                    if ls_args.connected {
+                        let mut nav = get_jiofi_navigator(Rc::clone(&connection))?;
+                        let connected_devices = nav.get_connected_devices().await?;
+                        let mut user_list: Vec<User> = vec![];
+
+                        for device in &connected_devices {
+                            user_list.push(User::from(device))
+                        }
+
+                        User::print_user_list(user_list)?;
+                    }
+                }
+                Commands::Thanos { snap } => (),
+                Commands::Group(group_args) => (),
+            }
+        }
         None => (),
     }
 
