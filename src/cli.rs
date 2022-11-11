@@ -60,13 +60,13 @@ pub struct UserCommand {
 #[clap(group(ArgGroup::new("options").required(true).args(&["all", "connected", "block-list"])))]
 pub struct LsCommand {
     #[clap(long, short)]
-    pub all: Option<String>,
+    pub all: bool,
 
-    #[clap(long, short)]
-    pub connected: Option<String>,
+    #[clap(long, short, action)]
+    pub connected: bool,
 
-    #[clap(long, short)]
-    pub block_list: Option<String>,
+    #[clap(long, short, action)]
+    pub block_list: bool,
 }
 
 #[derive(Args)]
