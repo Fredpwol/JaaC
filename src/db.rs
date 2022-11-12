@@ -10,9 +10,13 @@ use crate::{
 use rusqlite::{Connection, Result};
 use std::io::prelude::*;
 
-const CREATE_SESSION_DB: &str = "CREATE TABLE IF NOT EXISTS session_info(id INTEGER PRIMARY KEY, username TEXT NOT NULL, password TEXT NOT NULL)";
+const CREATE_SESSION_TABLE: &str = "CREATE TABLE IF NOT EXISTS session_info(id INTEGER PRIMARY KEY, username TEXT NOT NULL, password TEXT NOT NULL)";
 const GET_SESSION: &str = "SELECT username, password FROM  session_info LIMIT 1";
 const CREATE_SESSION_RECORD: &str = "INSERT INTO session_info(username, password) VALUES (?1, ?2)";
+
+
+const CREATE_USER_TABLE: &str = "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, host_name TEXT NOT NULL, ip_address TEXT NOT NULL, mac_address TEXT NOT NULL, status TEXT)";
+const GET_ALL_USERS: &str = "SELECT host_name, ip_address, mac_address, status from users;";
 
 #[derive(Debug, Clone)]
 pub struct SessionInfo {
@@ -27,6 +31,19 @@ pub struct User<'a> {
     pub mac_address: &'a str,
     pub status: &'a str,
 }
+
+
+impl<'a> From<&'a ConnectedDevice> for User<'a> {
+    fn from(device: &'a ConnectedDevice) -> Self {
+        User::new(
+            &device.Host_name,
+            &device.IP_address,
+            &device.MAC,
+            &device.Status,
+        )
+    }
+}
+
 
 impl<'a> User<'a> {
     pub fn new(
@@ -47,13 +64,14 @@ impl<'a> User<'a> {
         let mut output_buffer: Vec<u8> = Vec::new();
         writeln!(
             &mut output_buffer,
-            "Host Name\t\tIp Address\t\tMac Address\t\tStatus"
+            "{:<25}\t{:<25}\t{:<25}\t{:<25}\n",
+            "Host Name", "Ip Address", "Mac Address", "Status"
         )
         .unwrap();
         for user in ulist {
             writeln!(
                 &mut output_buffer,
-                "{}\t\t{}\t\t{}\t\t{}",
+                "{:<25}\t{:<25}\t{:25}\t{:25}",
                 user.host_name, user.ip_address, user.mac_address, user.status
             )
             .unwrap();
@@ -62,18 +80,12 @@ impl<'a> User<'a> {
         print!("{}", String::from_utf8(output_buffer).unwrap());
         Ok(())
     }
-}
 
-impl<'a> From<&'a ConnectedDevice> for User<'a> {
-    fn from(device: &'a ConnectedDevice) -> Self {
-        User::new(
-            &device.Host_name,
-            &device.IP_address,
-            &device.MAC,
-            &device.Status,
-        )
+    pub fn get_all_users(connection: Rc<Connection>) -> Vec<User>{
+        
     }
 }
+
 
 impl SessionInfo {
     pub fn new(
@@ -86,7 +98,7 @@ impl SessionInfo {
             std::fs::File::create(&db_path)?;
         }
         let conn = Connection::open(&db_path)?;
-        conn.execute(CREATE_SESSION_DB, [])?;
+        conn.execute(CREATE_SESSION_TABLE, [])?;
         Ok((SessionInfo { username, password }, conn))
     }
 
