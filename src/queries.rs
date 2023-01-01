@@ -19,3 +19,7 @@ pub const GET_USER_BY_IP: &str =
 
 pub const CREATE_GROUP_TABLE: &str = "CREATE TABLE IF NOT EXISTS groups (id INTEGER PRIMARY KEY, name TEXT NOT NULL, mode TEXT DEFAULT '0')";
 pub const SET_USER_GROUP: &str = "UPDATE users SET group_id=? WHERE id=?";
+
+pub const CREATE_DEFAULT_BLOCK_LIST: &str = "INSERT INTO groups(name) VALUES (default_block_list)";
+pub const CREATE_GROUP: &str = "INSERT INTO groups(name) VALUES (?1)";
+
