@@ -17,7 +17,7 @@ J_FI_PREV_SYSTEM_IMG_HASH=$( tail -n 1 history.txt | awk '{split($0,a," "); prin
 mkfs.ubifs -m 2048 -e 126976 -c 1073 -x lzo -f 8 -k r5 -p 1 -l 5 -r $1 jiofi_fs.ubifs
 ubinize -p 131072 -m 2048 -O 2048 -s 2048 -x 1 -Q 100310397 -o system.img ubifs_config.ini
 
-if [ "$(echo $?)" -eq 0 ]; then
+if [ "$(echo $?)" -ne 0 ]; then
     echo "ERROR: failed to dump data to UBI image"
     exit 1
 fi
