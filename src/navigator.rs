@@ -255,16 +255,14 @@ impl JioPageNavigator {
         for setting in current_settings {
             match setting {
                 MacFilterOptionType::MacRuleTable(mut ops) => {
-                    let setting = if let Some(rule_t) = options.get("rule_table") {
-                        if let MacFilterOptionType::MacRuleTable(new_rule_t) = rule_t {
-                            if _override {
-                                MacFilterOptionType::MacRuleTable(new_rule_t.clone())
-                            } else {
-                                ops.extend(new_rule_t.clone());
-                                MacFilterOptionType::MacRuleTable(ops.clone())
-                            }
+                    let setting = if let Some(MacFilterOptionType::MacRuleTable(new_rule_t)) =
+                        options.get("rule_table")
+                    {
+                        if _override {
+                            MacFilterOptionType::MacRuleTable(new_rule_t.clone())
                         } else {
-                            panic!("Invalid type variant assigned to the the key 'rule_table' please make sure the variant is 'MacFilterOptionType::MacRuleTable'");
+                            ops.extend(new_rule_t.clone());
+                            MacFilterOptionType::MacRuleTable(ops.clone())
                         }
                     } else {
                         MacFilterOptionType::MacRuleTable(ops)
@@ -272,21 +270,19 @@ impl JioPageNavigator {
                     payload.push(setting);
                 }
                 MacFilterOptionType::MacRules(mut ops) => {
-                    let setting = if let Some(rule) = options.get("mac_rules") {
-                        if let MacFilterOptionType::MacRules(new_rule) = rule {
-                            if _override {
-                                let mut new_ops = new_rule.clone();
-                                new_ops.insert(
-                                    "RequestVerifyToken".to_string(),
-                                    ops.get("RequestVerifyToken").unwrap().to_string(),
-                                );
-                                MacFilterOptionType::MacRules(new_ops)
-                            } else {
-                                ops.extend(new_rule.clone());
-                                MacFilterOptionType::MacRules(ops.clone())
-                            }
+                    let setting = if let Some(MacFilterOptionType::MacRules(new_rule)) =
+                        options.get("mac_rules")
+                    {
+                        if _override {
+                            let mut new_ops = new_rule.clone();
+                            new_ops.insert(
+                                "RequestVerifyToken".to_string(),
+                                ops.get("RequestVerifyToken").unwrap().to_string(),
+                            );
+                            MacFilterOptionType::MacRules(new_ops)
                         } else {
-                            panic!("Invalid type variant assigned to the the key 'mac_rules' please make sure the variant is 'MacFilterOptionType::MacRules'");
+                            ops.extend(new_rule.clone());
+                            MacFilterOptionType::MacRules(ops.clone())
                         }
                     } else {
                         MacFilterOptionType::MacRules(ops)
