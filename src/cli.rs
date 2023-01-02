@@ -98,10 +98,10 @@ pub enum GroupSubCommand {
     Modify(GroupModifyCommand),
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 pub enum Mode {
-    Allow,
-    Block,
+    Allow = 1,
+    Block = 0,
 }
 
 #[derive(Args)]
