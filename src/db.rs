@@ -36,7 +36,7 @@ pub struct Group {
     id: Option<i32>,
 }
 
-pub enum Useridentifier {
+pub enum UserIdentifier {
     HostName(String),
     IpAddress(String),
     MacAddress(String),
@@ -134,7 +134,7 @@ impl Group {
 impl From<ConnectedDevice> for User {
     fn from(device: ConnectedDevice) -> Self {
         let user = if let Some(mut user) =
-            User::retrieve(Useridentifier::IpAddress(device.IP_address.clone()), None)
+            User::retrieve(UserIdentifier::IpAddress(device.IP_address.clone()), None)
         {
             user.status = device.Status;
             user
@@ -240,20 +240,20 @@ impl<'a> User {
     }
 
     pub fn retrieve(
-        identifier: Useridentifier,
+        identifier: UserIdentifier,
         connection: Option<Rc<Connection>>,
     ) -> Option<Self> {
         let user = match identifier {
-            Useridentifier::HostName(host_name) => {
+            UserIdentifier::HostName(host_name) => {
                 User::get(GET_USER_BY_HOST_NAME, &[&host_name], connection)
             }
-            Useridentifier::IpAddress(ip_address) => {
+            UserIdentifier::IpAddress(ip_address) => {
                 User::get(GET_USER_BY_IP, &[&ip_address], connection)
             }
-            Useridentifier::MacAddress(mac_address) => {
+            UserIdentifier::MacAddress(mac_address) => {
                 User::get(GET_USER_BY_MAC, &[&mac_address], connection)
             }
-            Useridentifier::Id(id) => User::get(GET_USER_BY_ID, &[&id.to_string()], connection),
+            UserIdentifier::Id(id) => User::get(GET_USER_BY_ID, &[&id.to_string()], connection),
         };
 
         user
