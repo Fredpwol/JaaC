@@ -259,6 +259,26 @@ impl<'a> User {
         user
     }
 
+    pub fn update(&self, connection: Rc<Connection>) -> Result<(), &str> {
+        if let Some(id) = &self.id {
+            connection
+                .execute(
+                    UPDATE_USER,
+                    [
+                        &self.host_name,
+                        &self.ip_address,
+                        &self.mac_address,
+                        &self.status,
+                        &id.to_string(),
+                    ],
+                )
+                .expect("An error occured when updating user");
+        } else {
+            return Err("User record isn't synced");
+        }
+        Ok(())
+    }
+
     pub fn get_all_users(user_records: Vec<UserRecordData>) -> Vec<User> {
         let mut users = vec![];
 
