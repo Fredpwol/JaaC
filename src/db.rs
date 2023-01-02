@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::vec::Vec;
 
 use crate::{
+    cli::Mode,
     constants::get_db_full_path,
     navigator::ConnectedDevice,
     types::{Error, UserRecordData},
@@ -20,36 +21,150 @@ pub struct SessionInfo {
 }
 
 #[derive(Debug, Clone)]
-pub struct User<'a> {
-    pub host_name: &'a str,
-    pub ip_address: &'a str,
-    pub mac_address: &'a str,
-    pub status: &'a str,
+pub struct User {
+    pub host_name: String,
+    pub ip_address: String,
+    pub mac_address: String,
+    pub status: String,
+    id: Option<i32>,
 }
 
-impl<'a> From<&'a ConnectedDevice> for User<'a> {
-    fn from(device: &'a ConnectedDevice) -> Self {
-        User::new(
-            &device.Host_name,
-            &device.IP_address,
-            &device.MAC,
-            &device.Status,
-        )
+#[derive(Debug, Clone)]
+pub struct Group {
+    pub name: String,
+    pub mode: Mode,
+    id: Option<i32>,
+}
+
+pub enum Useridentifier {
+    HostName(String),
+    IpAddress(String),
+    MacAddress(String),
+    Id(i32),
+}
+
+impl Group {
+    pub fn new(name: &str, mode: Mode) -> Self {
+        Group {
+            name: name.to_string(),
+            mode,
+            id: None,
+        }
+    }
+
+    pub fn sync(&self, connection: Rc<Connection>) -> Result<Self, Box<dyn std::error::Error>> {
+        let found_group = Group::get(Some(Rc::clone(&connection)));
+        if let Some(group) = found_group {
+            return Ok(group);
+        }
+        self.create(connection)?;
+        Ok(self.clone())
+    }
+
+    pub fn create(&self, connection: Rc<Connection>) -> Result<Self, Box<dyn std::error::Error>> {
+        connection.execute(
+            CREATE_GROUP,
+            &[&self.name, &(self.mode.clone() as u8).to_string()],
+        )?;
+        Ok(self.clone())
+    }
+
+    pub fn delete(
+        name: &str,
+        connection: Rc<Connection>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        connection.execute(DELETE_GROUP, &[name])?;
+
+        Ok(())
+    }
+
+    pub fn update(
+        &self,
+        name: &str,
+        connection: Rc<Connection>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        connection.execute(UPDATE_GROUP, &[name])?;
+        Ok(())
+    }
+
+    fn get(connection: Option<Rc<Connection>>) -> Option<Self> {
+        let db_path = get_db_full_path();
+        let create_connection = || {
+            let conn = Connection::open(db_path).unwrap();
+            return conn;
+        };
+        let conn = match connection {
+            Some(conn) => conn,
+            None => Rc::new(create_connection()),
+        };
+
+        let mut stmt = conn.prepare(SELECT_GROUP).unwrap();
+        let mut rows = stmt.query([]).unwrap();
+
+        while let Some(row) = rows.next().unwrap() {
+            let mode = match row.get::<usize, u8>(2).unwrap() {
+                1 => Mode::Allow,
+                _ => Mode::Block,
+            };
+
+            let group = Group {
+                name: row.get::<usize, String>(1).unwrap(),
+                mode,
+                id: Some(row.get::<usize, i32>(0).unwrap()),
+            };
+
+            return Some(group);
+        }
+
+        return None;
+    }
+
+    pub fn retrieve(connection: Option<Rc<Connection>>) -> Self {
+        let group = match Group::get(connection) {
+            Some(group_) => group_,
+            None => {
+                panic!("No credentials found please try login using, 'jaac login'");
+            }
+        };
+
+        group
     }
 }
 
-impl<'a> User<'a> {
+impl From<ConnectedDevice> for User {
+    fn from(device: ConnectedDevice) -> Self {
+        let user = if let Some(mut user) =
+            User::retrieve(Useridentifier::IpAddress(device.IP_address.clone()), None)
+        {
+            user.status = device.Status;
+            user
+        } else {
+            User::new(
+                device.Host_name,
+                device.IP_address,
+                device.MAC,
+                device.Status,
+                None,
+            )
+        };
+        user
+    }
+}
+
+impl<'a> User {
     pub fn new(
-        host_name: &'a str,
-        ip_address: &'a str,
-        mac_address: &'a str,
-        status: &'a str,
+        host_name: String,
+        ip_address: String,
+        mac_address: String,
+        status: String,
+        id: Option<i32>,
     ) -> Self {
         User {
             host_name,
             ip_address,
             mac_address,
             status,
+            id,
         }
     }
 
@@ -91,19 +206,76 @@ impl<'a> User<'a> {
         Ok(user_records)
     }
 
-    pub fn get_all_users(user_records: &'a Vec<UserRecordData>) -> Vec<User<'a>> {
+    fn get(
+        statement: &str,
+        params: &[&str; 1],
+        connection: Option<Rc<Connection>>,
+    ) -> Option<Self> {
+        let db_path = get_db_full_path();
+        let create_connection = || {
+            let conn = Connection::open(db_path).unwrap();
+            return conn;
+        };
+        let conn = match connection {
+            Some(conn) => conn,
+            None => Rc::new(create_connection()),
+        };
+
+        let mut stmt = conn.prepare(statement).unwrap();
+        let mut rows = stmt.query(params).unwrap();
+
+        while let Some(row) = rows.next().unwrap() {
+            let user = User {
+                id: Some(row.get::<usize, i32>(0).unwrap()),
+                host_name: row.get::<usize, String>(1).unwrap(),
+                ip_address: row.get::<usize, String>(2).unwrap(),
+                mac_address: row.get::<usize, String>(3).unwrap(),
+                status: row.get::<usize, String>(4).unwrap(),
+            };
+
+            return Some(user);
+        }
+
+        return None;
+    }
+
+    pub fn retrieve(
+        identifier: Useridentifier,
+        connection: Option<Rc<Connection>>,
+    ) -> Option<Self> {
+        let user = match identifier {
+            Useridentifier::HostName(host_name) => {
+                User::get(GET_USER_BY_HOST_NAME, &[&host_name], connection)
+            }
+            Useridentifier::IpAddress(ip_address) => {
+                User::get(GET_USER_BY_IP, &[&ip_address], connection)
+            }
+            Useridentifier::MacAddress(mac_address) => {
+                User::get(GET_USER_BY_MAC, &[&mac_address], connection)
+            }
+            Useridentifier::Id(id) => User::get(GET_USER_BY_ID, &[&id.to_string()], connection),
+        };
+
+        user
+    }
+
+    pub fn get_all_users(user_records: Vec<UserRecordData>) -> Vec<User> {
         let mut users = vec![];
 
         for (host_name, ip_address, mac_address, status) in user_records {
-            let user = User::new(
-                host_name.as_str(),
-                ip_address.as_str(),
-                mac_address.as_str(),
-                status.as_str(),
-            );
+            let user = User::new(host_name, ip_address, mac_address, status, None);
             users.push(user);
         }
         users
+    }
+
+    pub fn add_to_group(
+        &self,
+        group_id: i32,
+        connection: Rc<Connection>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        connection.execute(SET_USER_GROUP, [group_id, self.id.unwrap()])?;
+        Ok(())
     }
 }
 
@@ -122,10 +294,7 @@ impl SessionInfo {
         Ok((SessionInfo { username, password }, conn))
     }
 
-    pub fn create_or_retrieve(
-        &self,
-        connection: Rc<Connection>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn sync(&self, connection: Rc<Connection>) -> Result<Self, Box<dyn std::error::Error>> {
         let found_session = SessionInfo::get(Some(Rc::clone(&connection)));
         if let Some(session) = found_session {
             return Ok(session);
