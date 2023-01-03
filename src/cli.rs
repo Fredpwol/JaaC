@@ -38,7 +38,7 @@ pub enum Commands {
 #[clap(group(ArgGroup::new("id").required(true).args(&["username", "ip", "mac"])))]
 pub struct UserCommand {
     #[clap(short, long)]
-    pub username: Option<String>,
+    pub devicename: Option<String>,
 
     #[clap(short, long)]
     pub ip: Option<String>,
