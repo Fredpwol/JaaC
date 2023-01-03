@@ -53,7 +53,7 @@ impl Group {
     }
 
     pub fn sync(&self, connection: Rc<Connection>) -> Result<Self, Box<dyn std::error::Error>> {
-        let found_group = Group::get(Some(Rc::clone(&connection)));
+        let found_group = Group::get(&self.name, Some(Rc::clone(&connection)));
         if let Some(group) = found_group {
             return Ok(group);
         }
@@ -87,7 +87,7 @@ impl Group {
         Ok(())
     }
 
-    fn get(connection: Option<Rc<Connection>>) -> Option<Self> {
+    fn get(name: &str, connection: Option<Rc<Connection>>) -> Option<Self> {
         let db_path = get_db_full_path();
         let create_connection = || {
             let conn = Connection::open(db_path).unwrap();
@@ -99,9 +99,9 @@ impl Group {
         };
 
         let mut stmt = conn.prepare(SELECT_GROUP).unwrap();
-        let mut rows = stmt.query([]).unwrap();
+        let mut rows = stmt.query([name]).unwrap();
 
-        while let Some(row) = rows.next().unwrap() {
+        if let Some(row) = rows.next().unwrap() {
             let mode = match row.get::<usize, u8>(2).unwrap() {
                 1 => Mode::Allow,
                 _ => Mode::Block,
@@ -119,8 +119,8 @@ impl Group {
         return None;
     }
 
-    pub fn retrieve(connection: Option<Rc<Connection>>) -> Self {
-        let group = match Group::get(connection) {
+    pub fn retrieve(name: &str, connection: Option<Rc<Connection>>) -> Self {
+        let group = match Group::get(name, connection) {
             Some(group_) => group_,
             None => {
                 panic!("No credentials found please try login using, 'jaac login'");
@@ -166,6 +166,38 @@ impl<'a> User {
             status,
             id,
         }
+    }
+
+    pub fn sync(&self, connection: Rc<Connection>) -> Result<Self, Box<dyn std::error::Error>> {
+        let user_record = User::retrieve(
+            UserIdentifier::IpAddress(self.ip_address.clone()),
+            Some(Rc::clone(&connection)),
+        );
+        if let Some(mut user) = user_record {
+            user.status = self.status.clone(); // update the status of the record from backend to the current status
+            user.update(Rc::clone(&connection))?; // update the record in db since we updated the status
+            return Ok(user);
+        }
+        self.create(Rc::clone(&connection))?;
+        Ok(self.clone())
+    }
+
+    pub fn create(&self, connection: Rc<Connection>) -> Result<Self, Box<dyn std::error::Error>> {
+        connection.execute(
+            CREATE_USER_RECORD,
+            [
+                &self.host_name,
+                &self.ip_address,
+                &self.mac_address,
+                &self.status,
+            ],
+        )?;
+
+        let user_record = User::retrieve(
+            UserIdentifier::MacAddress(self.mac_address.clone()),
+            Some(connection),
+        ).expect("user record not found, Failed to sync user record");
+        Ok(user_record)
     }
 
     pub fn print_user_list(ulist: Vec<User>) -> FmtResult {
@@ -297,6 +329,8 @@ impl<'a> User {
         connection.execute(SET_USER_GROUP, [group_id, self.id.unwrap()])?;
         Ok(())
     }
+
+    // TODO: implement add user to block list
 }
 
 impl SessionInfo {
