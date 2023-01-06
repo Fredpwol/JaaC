@@ -36,6 +36,7 @@ pub struct Group {
     id: Option<i32>,
 }
 
+#[derive(Clone)]
 pub enum UserIdentifier {
     HostName(String),
     IpAddress(String),
@@ -119,15 +120,20 @@ impl Group {
         return None;
     }
 
-    pub fn retrieve(name: &str, connection: Option<Rc<Connection>>) -> Self {
-        let group = match Group::get(name, connection) {
-            Some(group_) => group_,
-            None => {
-                panic!("No credentials found please try login using, 'jaac login'");
-            }
-        };
+    pub fn retrieve(name: &str, connection: Option<Rc<Connection>>) -> Option<Self> {
+        Group::get(name, connection)
+    }
 
-        group
+    pub fn add_user(&self, user: User, connection: Rc<Connection>) -> Result<(), &str> {
+        if let Some(id) = self.id {
+            connection
+                .execute(SET_USER_GROUP, [&id, &user.id.unwrap()])
+                .unwrap();
+        } else {
+            return Err("group object not synced");
+        }
+
+        return Ok(());
     }
 }
 
@@ -151,7 +157,7 @@ impl From<ConnectedDevice> for User {
     }
 }
 
-impl<'a> User {
+impl User {
     pub fn new(
         host_name: String,
         ip_address: String,
@@ -196,7 +202,8 @@ impl<'a> User {
         let user_record = User::retrieve(
             UserIdentifier::MacAddress(self.mac_address.clone()),
             Some(connection),
-        ).expect("user record not found, Failed to sync user record");
+        )
+        .expect("user record not found, Failed to sync user record");
         Ok(user_record)
     }
 

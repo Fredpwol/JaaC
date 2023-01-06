@@ -1,0 +1,6 @@
+8efdc1173bde076e6e29c154ebb51b74 Thu 22 Dec 2022 10:36:38 WAT added test socket listiner that execute on boot
+3af184e838e0b55522b95b32aec47f23 Sat 24 Dec 2022 08:34:12 WAT removed firewall access and modified init script
+8fe8ecd193ecc00200743bc065331afd Sat 24 Dec 2022 08:34:44 WAT removed firewall access and modified init script
+e7e3b59bc3b652a13a0e3121c74246d0 Sun 25 Dec 2022 23:52:27 WAT created iptables config and reimpliment with origin
+134c4e7bdcdb05e7e91c9de04324c9d9 Mon 26 Dec 2022 10:02:49 WAT open port 8000 on thttpd
+70665ea1b631e1ab365aa216b31d2f87 Mon 26 Dec 2022 10:05:49 WAT open port 8000 on thttpd
