@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 // use std::time::Duration;
 use std::{io::Write, rc::Rc};
-
 use clap::Parser;
+use jaac::cli::Mode;
 use jaac::db::{Group, User, UserIdentifier};
 #[allow(unused_variables, unused_imports)]
 use jaac::navigator;
@@ -158,42 +158,54 @@ async fn main() -> Result<(), Error> {
                     let user_identifier = identifier.expect("Please input a valid identfier, either the ip, mac, device name of the user.");
 
                     let user =
-                        User::retrieve(user_identifier, Some(connection)).unwrap_or_else(|| {
-                            use tokio::runtime::Runtime;
-                            let connected_devices = Runtime::new()
-                                .unwrap()
-                                .block_on(nav.get_connected_devices())
-                                .expect("An error occured while retrieving connected devices");
-                            let mut filted_devices: Vec<ConnectedDevice> = connected_devices
-                                .into_iter()
-                                .filter(|device| {
-                                    let res = match &user_identifier {
-                                        UserIdentifier::HostName(host_name) => {
-                                            *host_name == *device.Host_name
-                                        }
-                                        UserIdentifier::IpAddress(ip_address) => {
-                                            *ip_address == *device.IP_address
-                                        }
-                                        UserIdentifier::MacAddress(mac_address) => {
-                                            *mac_address == *device.MAC
-                                        }
-                                        _ => panic!("Huh?"),
-                                    };
-                                    res
-                                })
-                                .collect();
+                        User::retrieve(user_identifier.clone(), Some(Rc::clone(&connection)))
+                            .unwrap_or_else(|| {
+                                use tokio::runtime::Runtime;
+                                let connected_devices = Runtime::new()
+                                    .unwrap()
+                                    .block_on(nav.get_connected_devices())
+                                    .expect("An error occured while retrieving connected devices");
+                                let mut filted_devices: Vec<ConnectedDevice> = connected_devices
+                                    .into_iter()
+                                    .filter(|device| {
+                                        let res = match &user_identifier {
+                                            UserIdentifier::HostName(host_name) => {
+                                                *host_name == *device.Host_name
+                                            }
+                                            UserIdentifier::IpAddress(ip_address) => {
+                                                *ip_address == *device.IP_address
+                                            }
+                                            UserIdentifier::MacAddress(mac_address) => {
+                                                *mac_address == *device.MAC
+                                            }
+                                            _ => panic!("Huh?"),
+                                        };
+                                        res
+                                    })
+                                    .collect();
 
-                            if filted_devices.len() == 0 {
-                                panic!("Sorry device was not found");
-                            }
+                                if filted_devices.len() == 0 {
+                                    panic!("Sorry device was not found");
+                                }
 
-                            let device = filted_devices.pop().unwrap();
+                                let device = filted_devices.pop().unwrap();
 
-                            let user = User::from(device);
-                            user
-                        });
+                                let user = User::from(device);
+                                user
+                            });
 
-                    if user_args.block {}
+                    if user_args.block {
+                        let block_group =
+                            Group::retrieve("default_block_list", Some(Rc::clone(&connection)))
+                                .unwrap_or_else(|| {
+                                    let new_block_list =
+                                        Group::new("default_block_list", Mode::Block)
+                                            .sync(Rc::clone(&connection))
+                                            .expect("An unexpected error occured");
+                                    new_block_list
+                                });
+                        block_group.add_user(user, Rc::clone(&connection))?;
+                    }
                 }
                 Commands::Ls(ls_args) => {
                     if ls_args.connected {
