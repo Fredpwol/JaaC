@@ -263,7 +263,7 @@ impl User {
         let mut stmt = conn.prepare(statement).unwrap();
         let mut rows = stmt.query(params).unwrap();
 
-        while let Some(row) = rows.next().unwrap() {
+        if let Some(row) = rows.next().unwrap() {
             let user = User {
                 id: Some(row.get::<usize, i32>(0).unwrap()),
                 host_name: row.get::<usize, String>(1).unwrap(),
@@ -326,6 +326,26 @@ impl User {
             users.push(user);
         }
         users
+    }
+
+    pub fn get_blocked_users(connection: Rc<Connection>) -> Vec<User> {
+        let mut users = vec![];
+        let mut stmt = connection.prepare(SELECT_BLOCKED_USERS).unwrap();
+        let mut rows = stmt.query([]).unwrap();
+
+        while let Some(row) = rows.next().unwrap() {
+            let user = User {
+                id: Some(row.get::<usize, i32>(0).unwrap()),
+                host_name: row.get::<usize, String>(1).unwrap(),
+                ip_address: row.get::<usize, String>(2).unwrap(),
+                mac_address: row.get::<usize, String>(3).unwrap(),
+                status: row.get::<usize, String>(4).unwrap(),
+            };
+
+            users.push(user);
+        }
+
+        return users;
     }
 
     pub fn add_to_group(
