@@ -128,8 +128,11 @@ pub struct GroupModifyCommand {
 #[derive(Args)]
 #[clap(group(ArgGroup::new("id").required(true).args(&["username", "ip", "mac"])))]
 pub struct GroupRemoveCommand {
+    #[clap(value_parser)]
+    pub group_name: String,
+
     #[clap(short, long)]
-    pub username: Option<String>,
+    pub devicename: Option<String>,
 
     #[clap(short, long)]
     pub ip: Option<String>,
