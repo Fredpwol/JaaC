@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 // use std::time::Duration;
-use std::{io::Write, rc::Rc};
 use clap::Parser;
 use jaac::cli::Mode;
 use jaac::db::{Group, User, UserIdentifier};
@@ -15,6 +14,7 @@ use jaac::{
 };
 use rpassword::read_password;
 use rusqlite::Connection;
+use std::{io::Write, rc::Rc};
 use tokio;
 fn get_jiofi_navigator(connection: Rc<Connection>) -> Result<navigator::JioPageNavigator, Error> {
     let session = SessionInfo::retrieve(Some(connection));
@@ -205,6 +205,17 @@ async fn main() -> Result<(), Error> {
                                     new_block_list
                                 });
                         block_group.add_user(user, Rc::clone(&connection))?;
+                    } else if user_args.allow {
+                        let allowed_group =
+                            Group::retrieve("default_allow_list", Some(Rc::clone(&connection)))
+                                .unwrap_or_else(|| {
+                                    let new_block_list =
+                                        Group::new("default_allow_list", Mode::Block)
+                                            .sync(Rc::clone(&connection))
+                                            .expect("An unexpected error occured");
+                                    new_block_list
+                                });
+                        allowed_group.add_user(user, Rc::clone(&connection))?;
                     }
                 }
                 Commands::Ls(ls_args) => {
@@ -223,6 +234,8 @@ async fn main() -> Result<(), Error> {
                         let users = User::get_all_users(user_record);
                         User::print_user_list(users)?;
                     } else if ls_args.block_list {
+                        let blocked_users = User::get_blocked_users(connection);
+                        User::print_user_list(blocked_users)?;
                     } else {
                     }
                 }
